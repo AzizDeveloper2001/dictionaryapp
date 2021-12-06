@@ -48,14 +48,14 @@ class MainActivity : AppCompatActivity() {
         return navController.navigateUp(appBarConfiguration) || super.onSupportNavigateUp()
     }
 
-    override fun onStart() {
-        super.onStart()
-        registerReceiver(internetReciever,IntentFilter("android.net.conn.CONNECTIVITY_CHANGE"))
-
-    }
-
-    override fun onStop() {
-        super.onStop()
-        unregisterReceiver(internetReciever)
-    }
+//    override fun onStart() {
+//        super.onStart()
+//        registerReceiver(internetReciever,IntentFilter("android.net.conn.CONNECTIVITY_CHANGE"))
+//
+//    }
+//
+//    override fun onStop() {
+//        super.onStop()
+//        unregisterReceiver(internetReciever)
+//    }
 }

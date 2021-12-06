@@ -12,6 +12,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
@@ -30,6 +31,7 @@ import uz.pdp.dictionaryapp.adapters.RvDaysWord
 import uz.pdp.dictionaryapp.databinding.FragmentMainBinding
 import uz.pdp.dictionaryapp.retrofitmodel.Word
 import uz.pdp.dictionaryapp.retrofitmodel.WordsDay
+import uz.pdp.dictionaryapp.utils.NetworkHelper
 import java.text.SimpleDateFormat
 
 
@@ -56,6 +58,7 @@ class MainFragment : Fragment(),MediaPlayer.OnPreparedListener {
     lateinit var appDatabase: AppDatabase
     lateinit var list: ArrayList<WordInfo>
     lateinit var mediaPlayer: MediaPlayer
+    lateinit var networkHelper: NetworkHelper
     private  val TAG = "MainFragment"
 
     override fun onCreateView(
@@ -63,6 +66,7 @@ class MainFragment : Fragment(),MediaPlayer.OnPreparedListener {
         savedInstanceState: Bundle?
     ): View? {
         (requireActivity() as AppCompatActivity).supportActionBar?.elevation=0f
+        networkHelper= NetworkHelper(requireContext())
        binding= FragmentMainBinding.inflate(inflater,container,false)
         appDatabase= AppDatabase.getInstance(requireContext())
         list=ArrayList()
@@ -123,77 +127,87 @@ class MainFragment : Fragment(),MediaPlayer.OnPreparedListener {
 
 
             if((wordlist.size>0 && simpleDateFormat.format(wordlist[0].date)!=simpleDateFormat.format(System.currentTimeMillis())) || wordlist.size==0){
-                ApiClient.apiService.getwordforday().enqueue(object :Callback<List<WordsDay>>{
-                    override fun onResponse(
-                        call: Call<List<WordsDay>>,
-                        response: Response<List<WordsDay>>
-                    ) {
-                        if(response.isSuccessful){
-                            var l=ArrayList<WordsDay>(response.body())
-                            if(l.size>0){
-                                ApiClient.apiService.getinformation(l[0].word!!).enqueue(object :Callback<List<Word>>{
-                                    override fun onResponse(
-                                        call: Call<List<Word>>,
-                                        response: Response<List<Word>>
-                                    ) {
-                                        if(response.isSuccessful){
-                                            if(response.body()?.size!!> 0){
-                                                var wordDays=WordInfo(name = l[0].word!!,definition = response.body()?.get(0)?.meanings?.get(0)?.definitions?.get(0)?.definition!!,audio =
-                                                response.body()?.get(0)?.phonetics?.get(0)?.audio!!,date = System.currentTimeMillis(),save = false,type = "day")
-                                                appDatabase.wordinfodao().addWordInfo(wordDays)
-                                                wordlist.add(0,wordDays)
-                                                rvDaysWord.notifyItemInserted(wordlist.size)
-                                                rvDaysWord.notifyItemChanged(wordlist.size)
-                                            }
+               if(networkHelper.isNetWorkConnected()){
+                   ApiClient.apiService.getwordforday().enqueue(object :Callback<List<WordsDay>>{
+                       override fun onResponse(
+                           call: Call<List<WordsDay>>,
+                           response: Response<List<WordsDay>>
+                       ) {
+                           if(response.isSuccessful){
+                               var l=ArrayList<WordsDay>(response.body())
+                               if(l.size>0){
+                                   ApiClient.apiService.getinformation(l[0].word!!).enqueue(object :Callback<List<Word>>{
+                                       override fun onResponse(
+                                           call: Call<List<Word>>,
+                                           response: Response<List<Word>>
+                                       ) {
+                                           if(response.isSuccessful){
+                                               if(response.body()?.size!!> 0){
+                                                   var wordDays=WordInfo(name = l[0].word!!,definition = response.body()?.get(0)?.meanings?.get(0)?.definitions?.get(0)?.definition!!,audio =
+                                                   response.body()?.get(0)?.phonetics?.get(0)?.audio!!,date = System.currentTimeMillis(),save = false,type = "day")
+                                                   appDatabase.wordinfodao().addWordInfo(wordDays)
+                                                   wordlist.add(0,wordDays)
+                                                   rvDaysWord.notifyItemInserted(wordlist.size)
+                                                   rvDaysWord.notifyItemChanged(wordlist.size)
+                                               }
 
-                                        }
-                                    }
+                                           }
+                                       }
 
-                                    override fun onFailure(call: Call<List<Word>>, t: Throwable) {
-                                        Toast.makeText(requireContext(), "${t.message}", Toast.LENGTH_SHORT).show()
-                                    }
+                                       override fun onFailure(call: Call<List<Word>>, t: Throwable) {
+                                           Toast.makeText(requireContext(), "${t.message}", Toast.LENGTH_SHORT).show()
+                                       }
 
-                                })
-                            }
-                        }
-                    }
+                                   })
+                               }
+                           }
+                       }
 
-                    override fun onFailure(call: Call<List<WordsDay>>, t: Throwable) {
-                        Toast.makeText(requireContext(), "${t.message}", Toast.LENGTH_SHORT).show()
-                    }
+                       override fun onFailure(call: Call<List<WordsDay>>, t: Throwable) {
+                           Toast.makeText(requireContext(), "${t.message}", Toast.LENGTH_SHORT).show()
+                       }
 
-                })
+                   })
+               } else {
+                   Toast.makeText(requireContext(), "No internet connection", Toast.LENGTH_SHORT).show()
+               }
+
             }
 
 
-
+        requireActivity().window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         binding.searchtext.setOnQueryTextListener(object :SearchView.OnQueryTextListener{
             override fun onQueryTextSubmit(query: String?): Boolean {
 
-                ApiClient.apiService.getinformation(query.toString()).enqueue(object :Callback<List<Word>>{
-                    override fun onResponse(call: Call<List<Word>>, response: Response<List<Word>>) {
-                        if(response.isSuccessful){
-                            var wordInfo=response.body()
-                            var definition=  wordInfo?.get(0)?.meanings?.get(0)?.definitions?.get(0)?.definition
-                            var name=wordInfo?.get(0)?.word
-                            var audio=wordInfo?.get(0)?.phonetics?.get(0)?.audio
-                            appDatabase.wordinfodao().addWordInfo(WordInfo(name = name!!,definition = definition!!,save = false,audio = audio!!,date = System.currentTimeMillis(),type = "search"))
-                                list.add(0, WordInfo(name = name,definition = definition,save = false,audio = audio!!,date = System.currentTimeMillis(),type = "search"))
-                            rvAdapter.notifyItemInserted(0)
-                            rvAdapter.notifyDataSetChanged()
+                      if(networkHelper.isNetWorkConnected()){
+                          ApiClient.apiService.getinformation(query.toString()).enqueue(object :Callback<List<Word>>{
+                              override fun onResponse(call: Call<List<Word>>, response: Response<List<Word>>) {
+                                  if(response.isSuccessful){
+                                      var wordInfo=response.body()
+                                      var definition=  wordInfo?.get(0)?.meanings?.get(0)?.definitions?.get(0)?.definition
+                                      var name=wordInfo?.get(0)?.word
+                                      var audio=wordInfo?.get(0)?.phonetics?.get(0)?.audio
+                                      appDatabase.wordinfodao().addWordInfo(WordInfo(name = name!!,definition = definition!!,save = false,audio = audio!!,date = System.currentTimeMillis(),type = "search"))
+                                      list.add(0, WordInfo(name = name,definition = definition,save = false,audio = audio!!,date = System.currentTimeMillis(),type = "search"))
+                                      rvAdapter.notifyItemInserted(0)
+                                      rvAdapter.notifyDataSetChanged()
 
 
 
 
-                        }
-                    }
+                                  }
+                              }
 
-                    override fun onFailure(call: Call<List<Word>>, t: Throwable) {
-                        Toast.makeText(requireContext(), "${t.message}", Toast.LENGTH_SHORT).show()
-                        Log.d(TAG, "onFailure: ${t.message}")
-                    }
+                              override fun onFailure(call: Call<List<Word>>, t: Throwable) {
+                                  Toast.makeText(requireContext(), "${t.message}", Toast.LENGTH_SHORT).show()
+                                  Log.d(TAG, "onFailure: ${t.message}")
+                              }
 
-                })
+                          })
+                      } else{
+                          Toast.makeText(requireContext(), "No internet connection", Toast.LENGTH_SHORT).show()
+                      }
+
 
                 return false
             }
